@@ -1,0 +1,57 @@
+﻿@model Ecommerce.Core.Models.Cart
+
+<h1>Your Shopping Cart</h1>
+
+@if (Model?.Items == null || !Model.Items.Any())
+{
+    <p>Your cart is empty. <a asp-action="Index" asp-controller="Product">Continue shopping</a></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Image</th>
+                <th>Product</th>
+                <th>Description</th>
+                <th>Price</th>
+                <th>Quantity</th>
+                <th>Total</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.Items)
+            {
+                <tr class="align-middle">
+                    <td class="text-center">
+                        @if (!string.IsNullOrEmpty(item?.Product?.ImageUrl))
+                        {
+                            <img src="@item.Product.ImageUrl" alt="@item.Product.Name" class="img-fluid rounded" style="max-width: 100px; height: auto;" />
+                        }
+                        else
+                        {
+                            <span>No Image</span>
+                        }
+                    </td>
+                    <td>@item?.Product?.Name</td>
+                    <td>@item?.Product?.Description</td>
+                    <td>@item?.Product?.Price.ToString("C2")</td>
+                    <td>@item.Quantity</td>
+                    <td>@((item.Product.Price * item.Quantity).ToString("C2"))</td>
+                    <td>
+                        <form asp-action="RemoveFromCart" method="post" class="d-inline">
+                            <input type="hidden" name="productId" value="@item.ProductId" />
+                            <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="d-flex justify-content-between">
+        <a asp-action="Index" asp-controller="Product" class="btn btn-primary">Continue Shopping</a>
+        <a asp-action="Checkout" asp-controller="Order" class="btn btn-success">Checkout</a>
+    </div>
+}

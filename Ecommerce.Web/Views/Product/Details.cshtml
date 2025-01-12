@@ -1,0 +1,22 @@
+﻿@model Ecommerce.Core.Models.Product
+
+<h1>@Model.Name</h1>
+
+<div>
+    <p><strong>Description:</strong> @Model.Description</p>
+    <p><strong>Price:</strong> @Model.Price.ToString("C")</p>
+    <img src="@Model.ImageUrl" alt="@Model.Name" class="img-fluid" />
+</div>
+
+@if (User.Identity.IsAuthenticated)
+{
+    <form asp-controller="Cart" asp-action="AddToCart" asp-route-id="@Model.ProductId" method="post">
+        <button type="submit" class="btn btn-success my-3">Add to Cart</button>
+    </form>
+}
+<a href="@Url.Action("Index", "Product")" class="btn btn-primary">Back to Product List</a>
+@if (User.Identity.IsAuthenticated)
+{
+     <a href="@Url.Action("Edit", "Product", new { id = Model.ProductId })" class="btn btn-secondary">Edit</a>
+     <a href="@Url.Action("Delete", "Product", new { id = Model.ProductId })" class="btn btn-danger">Delete</a>
+}

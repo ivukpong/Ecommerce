@@ -1,0 +1,27 @@
+﻿@model IEnumerable<Ecommerce.Core.Models.Order>
+
+<h1>Your Orders</h1>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Order Date</th>
+            <th>Total Items</th>
+            <th>Total Price</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var order in Model)
+        {
+            <tr>
+                <td>@order.OrderDate.ToString("MMMM dd, yyyy")</td>
+                <td>@order.Items.Count</td>
+                <td>@(order.Items.Sum(i => i.Price * i.Quantity).ToString("C"))</td>
+                <td>
+                    <a href="@Url.Action("Details", "Order", new { id = order.OrderId })" class="btn btn-primary">View Details</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

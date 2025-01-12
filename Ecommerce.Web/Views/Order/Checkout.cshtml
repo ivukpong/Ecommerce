@@ -1,0 +1,72 @@
+﻿@model Ecommerce.Core.Models.Order
+
+<h1>Checkout</h1>
+
+<form asp-action="Details" method="post">
+    <div class="form-group">
+        <label asp-for="Street" class="control-label">Street</label>
+        <input asp-for="Street" class="form-control" />
+        <span asp-validation-for="Street" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <label asp-for="City" class="control-label">City</label>
+        <input asp-for="City" class="form-control" />
+        <span asp-validation-for="City" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <label asp-for="PostalCode" class="control-label">Postal Code</label>
+        <input asp-for="PostalCode" class="form-control" />
+        <span asp-validation-for="PostalCode" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <label asp-for="Country" class="control-label">Country</label>
+        <input asp-for="Country" class="form-control" />
+        <span asp-validation-for="Country" class="text-danger"></span>
+    </div>
+
+    <h3>Order Items</h3>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Image</th>
+                <th>Product</th>
+                <th>Quantity</th>
+                <th>Price</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.Items.ToList())
+            {
+                <tr class="align-items-center">
+                    <td class="text-center">
+                        @if (!string.IsNullOrEmpty(item.Product?.ImageUrl))
+                        {
+                            <img src="@item.Product.ImageUrl" alt="@item.Product.Name" class="img-fluid rounded" style="max-width: 100px; height: auto;" />
+                        }
+                        else
+                        {
+                            <span>No Image</span>
+                        }
+                    </td>
+                    <td>@(item.Product != null ? item.Product.Name : "Unknown Product")</td>
+                    <td>@item.Quantity</td>
+                    <td>@item.Price.ToString("C2")</td>
+                    <td>@((item.Price * item.Quantity).ToString("C2"))</td>
+                </tr>
+                <input type="hidden" name="Items[@Model.Items.ToList().IndexOf(item)].ProductId" value="@item.ProductId" />
+                <input type="hidden" name="Items[@Model.Items.ToList().IndexOf(item)].Quantity" value="@item.Quantity" />
+                <input type="hidden" name="Items[@Model.Items.ToList().IndexOf(item)].Price" value="@item.Price" />
+            }
+
+        </tbody>
+    </table>
+
+    <div class="form-group my-3">
+        <input type="submit" value="Place Order" class="btn btn-primary" />
+    </div>
+</form>
+
+<div>
+    <a asp-action="Index" asp-controller="Cart" class="btn btn-secondary">Back to Cart</a>
+</div>
