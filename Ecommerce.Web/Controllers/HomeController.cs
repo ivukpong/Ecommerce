@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Ecommerce.Web.Controllers
 {
+     [ApiExplorerSettings(IgnoreApi = true)]
      public class HomeController : Controller
      {
           private readonly IProductsService _productsService;
@@ -21,7 +22,7 @@ namespace Ecommerce.Web.Controllers
                var featuredProducts = await _productsService.GetAllProducts();
                var user = await _userService.GetUser(userEmail);
                var viewModel = new HomeViewModel
-               {              
+               {
                     FeaturedProducts = featuredProducts,
                     Username = user?.Username ?? ""
                };

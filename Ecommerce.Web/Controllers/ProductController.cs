@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Ecommerce.Web.Controllers
 {
+     [ApiExplorerSettings(IgnoreApi = true)]
      [Route("[controller]")]
      public class ProductController : Controller
      {
@@ -84,7 +85,7 @@ namespace Ecommerce.Web.Controllers
                {
                     try
                     {
-                        await _productsService.UpdateProduct(product);
+                         await _productsService.UpdateProduct(product);
                          return RedirectToAction(nameof(Index)); // Redirect to the list of products
                     }
                     catch

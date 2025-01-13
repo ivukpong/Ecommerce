@@ -1,9 +1,9 @@
 ﻿using Ecommerce.Core.Interfaces.IServices;
 using Ecommerce.Core.Models;
 using Microsoft.AspNetCore.Mvc;
-using System.Linq;
 using System.Security.Claims;
 
+[ApiExplorerSettings(IgnoreApi = true)]
 public class OrderController : Controller
 {
      private readonly IOrderService _orderService;

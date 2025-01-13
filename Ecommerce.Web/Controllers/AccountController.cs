@@ -1,14 +1,10 @@
 ﻿using Ecommerce.Core.Interfaces.IServices;
 using Ecommerce.Core.Models;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Http;
-using System.Security.Claims;
-using System.Text;
-using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
 
 namespace Ecommerce.Web.Controllers
 {
+     [ApiExplorerSettings(IgnoreApi = true)]
      [Route("[controller]")]
      public class AccountController : Controller
      {
@@ -105,6 +101,7 @@ namespace Ecommerce.Web.Controllers
                return RedirectToAction("Login", "Account");
           }
 
+          [HttpGet("AccessDenied")]
           public IActionResult AccessDenied()
           {
                return View();
