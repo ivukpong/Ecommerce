@@ -2,137 +2,147 @@
 using Ecommerce.Core.Interfaces.IRepository;
 using Ecommerce.Core.Models;
 using Dapper;
+using System.Data;
 
 namespace Ecommerce.Infrastructure.Repositories
-     {
+{
      public class ProductsRepository : IProductsRepository
+     {
+          private readonly IDbConnectionFactory _dbConnectionFactory;
+
+          public ProductsRepository(IDbConnectionFactory dbConnectionFactory)
           {
-               private readonly IDbConnectionFactory _dbConnectionFactory;
+               _dbConnectionFactory = dbConnectionFactory;
+          }
 
-               public ProductsRepository(IDbConnectionFactory dbConnectionFactory)
+          // Check if a product exists by its ID
+          public async Task<bool> CheckForProduct(int id)
+          {
+               using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
                {
-                    _dbConnectionFactory = dbConnectionFactory;
+                    var parameters = new DynamicParameters();
+                    parameters.Add("ProductId", id);
+
+                    var count = await connection.ExecuteScalarAsync<int>(
+                        "proc_CheckForProduct", // Replace with the actual stored procedure name
+                        parameters,
+                        commandType: CommandType.StoredProcedure
+                    );
+
+                    return count > 0;
                }
+          }
 
-               // Check if a product exists by its ID
-               public async Task<bool> CheckForProduct(int id)
+          // Create a new product
+          public async Task CreateProduct(Product product)
+          {
+               using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
                {
-                    using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
+                    var parameters = new DynamicParameters();
+                    parameters.Add("Name", product.Name);
+                    parameters.Add("Description", product.Description);
+                    parameters.Add("Price", product.Price);
+                    parameters.Add("ImageUrl", product.ImageUrl);
+                    parameters.Add("IsFeatured", product.IsFeatured);
+
+                    await connection.ExecuteAsync(
+                        "proc_CreateProduct", // Replace with the actual stored procedure name
+                        parameters,
+                        commandType: CommandType.StoredProcedure
+                    );
+               }
+          }
+
+          // Delete a product by its ID
+          public async Task<Product> DeleteProduct(int id)
+          {
+               using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
+               {
+                    var parameters = new DynamicParameters();
+                    parameters.Add("ProductId", id);
+
+                    var product = await connection.QuerySingleOrDefaultAsync<Product>(
+                        "proc_GetProductById", // Replace with the actual stored procedure name
+                        parameters,
+                        commandType: CommandType.StoredProcedure
+                    );
+
+                    if (product == null)
                     {
-                         var query = "SELECT COUNT(1) FROM [dbo].[Products] WHERE [ProductId] = @ProductId";
-                         var parameters = new { ProductId = id };
-                         var count = await connection.ExecuteScalarAsync<int>(query, parameters);
-                         return count > 0;
+                         throw new KeyNotFoundException($"Product with id {id} not found");
                     }
+
+                    await connection.ExecuteAsync(
+                        "proc_DeleteProduct", // Replace with the actual stored procedure name
+                        parameters,
+                        commandType: CommandType.StoredProcedure
+                    );
+
+                    return product;
                }
+          }
 
-               // Create a new product
-               public async Task CreateProduct(Product product)
+          // Get all products
+          public async Task<List<Product>> GetAllProducts()
+          {
+               using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
                {
-                    using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
+                    var products = await connection.QueryAsync<Product>(
+                        "proc_GetAllProducts", // Replace with the actual stored procedure name
+                        commandType: CommandType.StoredProcedure
+                    );
+
+                    return products.ToList();
+               }
+          }
+
+          // Get a product by its ID
+          public async Task<Product> GetProductById(int id)
+          {
+               using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
+               {
+                    var parameters = new DynamicParameters();
+                    parameters.Add("ProductId", id);
+
+                    var product = await connection.QuerySingleOrDefaultAsync<Product>(
+                        "proc_GetProductById", // Replace with the actual stored procedure name
+                        parameters,
+                        commandType: CommandType.StoredProcedure
+                    );
+
+                    if (product == null)
                     {
-                         var query = @"
-                    INSERT INTO [dbo].[Products] 
-                    ([Name], [Description], [Price], [ImageUrl], [IsFeatured]) 
-                    VALUES 
-                    (@Name, @Description, @Price, @ImageUrl, @IsFeatured)";
-
-                         var parameters = new
-                         {
-                              product.Name,
-                              product.Description,
-                              product.Price,
-                              product.ImageUrl,
-                              product.IsFeatured
-                         };
-
-                         await connection.ExecuteAsync(query, parameters);
+                         throw new KeyNotFoundException($"Product with id {id} not found");
                     }
+
+                    return product;
                }
+          }
 
-               // Delete a product by its ID
-               public async Task<Product> DeleteProduct(int id)
+          // Update a product
+          public async Task UpdateProduct(Product product)
+          {
+               using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
                {
-                    using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
+                    var parameters = new DynamicParameters();
+                    parameters.Add("ProductId", product.ProductId);
+                    parameters.Add("Name", product.Name);
+                    parameters.Add("Description", product.Description);
+                    parameters.Add("Price", product.Price);
+                    parameters.Add("ImageUrl", product.ImageUrl);
+                    parameters.Add("IsFeatured", product.IsFeatured);
+
+                    var affectedRows = await connection.ExecuteAsync(
+                        "proc_UpdateProduct", // Replace with the actual stored procedure name
+                        parameters,
+                        commandType: CommandType.StoredProcedure
+                    );
+
+                    if (affectedRows == 0)
                     {
-                         var query = "SELECT * FROM [dbo].[Products] WHERE [ProductId] = @ProductId";
-                         var parameters = new { ProductId = id };
-
-                         var product = await connection.QuerySingleOrDefaultAsync<Product>(query, parameters);
-
-                         if (product == null)
-                         {
-                              throw new KeyNotFoundException($"Product with id {id} not found");
-                         }
-
-                         var deleteQuery = "DELETE FROM [dbo].[Products] WHERE [ProductId] = @ProductId";
-                         await connection.ExecuteAsync(deleteQuery, parameters);
-
-                         return product;
-                    }
-               }
-
-               // Get all products
-               public async Task<List<Product>> GetAllProducts()
-               {
-                    using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
-                    {
-                         var query = "SELECT * FROM [dbo].[Products]";
-                         var products = await connection.QueryAsync<Product>(query);
-                         return products.ToList();
-                    }
-               }
-
-               // Get a product by its ID
-               public async Task<Product> GetProductById(int id)
-               {
-                    using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
-                    {
-                         var query = "SELECT * FROM [dbo].[Products] WHERE [ProductId] = @ProductId";
-                         var parameters = new { ProductId = id };
-                         var product = await connection.QuerySingleOrDefaultAsync<Product>(query, parameters);
-
-                         if (product == null)
-                         {
-                              throw new KeyNotFoundException($"Product with id {id} not found");
-                         }
-
-                         return product;
-                    }
-               }
-
-               // Update a product
-               public async Task UpdateProduct(Product product)
-               {
-                    using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
-                    {
-                         var query = @"
-                    UPDATE [dbo].[Products] 
-                    SET 
-                        [Name] = @Name,
-                        [Description] = @Description,
-                        [Price] = @Price,
-                        [ImageUrl] = @ImageUrl,
-                        [IsFeatured] = @IsFeatured
-                    WHERE [ProductId] = @ProductId";
-
-                         var parameters = new
-                         {
-                              product.Name,
-                              product.Description,
-                              product.Price,
-                              product.ImageUrl,
-                              product.IsFeatured,
-                              product.ProductId
-                         };
-
-                         var affectedRows = await connection.ExecuteAsync(query, parameters);
-
-                         if (affectedRows == 0)
-                         {
-                              throw new KeyNotFoundException($"Product with id {product.ProductId} not found");
-                         }
+                         throw new KeyNotFoundException($"Product with id {product.ProductId} not found");
                     }
                }
           }
      }
+}

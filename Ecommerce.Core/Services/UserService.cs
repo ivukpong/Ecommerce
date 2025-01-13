@@ -110,7 +110,6 @@ namespace Ecommerce.Core.Services
                byte[] hashedPassword = HashPassword(saltedPassword);
 
                string convertedSalt = Convert.ToBase64String(salt);
-               
 
                User user = new User
                {
@@ -118,7 +117,8 @@ namespace Ecommerce.Core.Services
                     Email = model.Email,
                     PasswordHash = hashedPassword,
                     Salt = convertedSalt,
-                    Username = model.Username
+                    Username = model.Username,
+                    Role = "User" // Assign role here
                };
 
                await _usersRepository.AddNewUser(user);
@@ -134,14 +134,15 @@ namespace Ecommerce.Core.Services
                {
                   new Claim(ClaimTypes.Name, user.Username),
                   new Claim(ClaimTypes.Email, user.Email),
-              };
+                  new Claim(ClaimTypes.Role, user.Role) // Add role claim
+               };
 
                var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JwtSecretKey"]));
                var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
                var token = new JwtSecurityToken(
-                   issuer: "EcommerceApp",           // Ideally use a dynamic issuer
-                   audience: "EcommerceAppUser",     // Ideally use a dynamic audience
+                   issuer: "EcommerceApp",
+                   audience: "EcommerceAppUser",
                    claims: claims,
                    expires: DateTime.Now.AddHours(1),
                    signingCredentials: creds

@@ -4,7 +4,7 @@ namespace Ecommerce.Core.Interfaces.IRepository
 {
      public interface IOrdersRepository
      {
-          Task<List<Order>> GetAllOrders();
+          Task<List<Order>> GetAllOrders(string email);
 
           Task<Order> GetOrder(int id, string userId);
 
@@ -12,7 +12,7 @@ namespace Ecommerce.Core.Interfaces.IRepository
 
           Task UpdateOrder(Order order);
 
-          Task<Order> DeleteOrder(int id);
+          Task DeleteOrder(int id);
      }
 
 }

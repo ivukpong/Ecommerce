@@ -21,108 +21,93 @@ namespace Ecommerce.Infrastructure.Repositories
           public async Task<Cart> GetCart(string userId)
           {
                using var connection = _dbConnectionFactory.CreateECommerceDbConnection();
-               var queryCart = @"SELECT * FROM [dbo].[Carts] WHERE [UserId] = @UserId";
-               var queryCartItems = @"
-SELECT ci.*, p.* 
-FROM [dbo].[CartItems] ci
-LEFT JOIN [dbo].[Products] p ON ci.ProductId = p.ProductId
-WHERE ci.CartId = (SELECT TOP 1 [CartId] FROM [dbo].[Carts] WHERE [UserId] = @UserId);
-";
+               var queryCart = "proc_GetCartByUserId";
+               var queryCartItems = "proc_GetCartItemsByCartId";
 
-               var cart = await connection.QueryFirstOrDefaultAsync<Cart>(queryCart, new { UserId = userId });
+               var parameters = new DynamicParameters();
+               parameters.Add("@UserId", userId);
+
+               // Get cart
+               var cart = await connection.QueryFirstOrDefaultAsync<Cart>(queryCart, parameters, commandType: CommandType.StoredProcedure);
+
                if (cart != null)
                {
-                    var cartItems = await connection.QueryAsync(queryCartItems, new { UserId = userId });
-                    cart.Items = cartItems.Select(row => new CartItem
-                    {
-                         CartItemId = row.CartItemId,
-                         CartId = row.CartId,
-                         ProductId = row.ProductId,
-                         Quantity = row.Quantity,
-                         Product = new Product
-                         {
-                              ProductId = row.ProductId,
-                              Name = row.Name,
-                              Price = row.Price,
-                              Description = row.Description,
-                              ImageUrl = row.ImageUrl
-                         }
-                    }).ToList();
+                    var cartItemsParams = new DynamicParameters();
+                    cartItemsParams.Add("@CartId", cart.CartId);
+
+                    var cartItems = await connection.QueryAsync<CartItem, Product, CartItem>(
+                        queryCartItems,
+                        (cartItem, product) =>
+                        {
+                             cartItem.Product = product;
+                             return cartItem;
+                        },
+                        cartItemsParams,
+                        splitOn: "ProductId",
+                        commandType: CommandType.StoredProcedure
+                    );
+
+                    cart.Items = cartItems.ToList();
                }
 
                return cart;
           }
 
-
           public async Task ClearCart(string userId)
           {
                using var connection = _dbConnectionFactory.CreateECommerceDbConnection();
-               var query = @"
-                DELETE FROM [dbo].[CartItems] WHERE [CartId] IN 
-                (SELECT [CartId] FROM [dbo].[Carts] WHERE [UserId] = @UserId)";
-               await connection.ExecuteAsync(query, new { UserId = userId });
+               var query = "proc_ClearCartItemsByUserId";
+
+               var parameters = new DynamicParameters();
+               parameters.Add("@UserId", userId);
+
+               await connection.ExecuteAsync(query, parameters, commandType: CommandType.StoredProcedure);
           }
 
           public async Task UpdateCart(Cart cart)
           {
                using var connection = _dbConnectionFactory.CreateECommerceDbConnection();
 
-               // Ensure the cart exists
-               var cartId = cart.CartId;
+               var parameters = new DynamicParameters();
+               parameters.Add("@UserId", cart.UserId);
+
+               // Check if cart exists, if not create
+               var cartId = await connection.ExecuteScalarAsync<int>("proc_CheckIfCartExist", parameters, commandType: CommandType.StoredProcedure);
+
                if (cartId == 0)
                {
-                    var insertCartQuery = @"
-          INSERT INTO [dbo].[Carts] ([UserId]) 
-          VALUES (@UserId);
-          SELECT CAST(SCOPE_IDENTITY() AS INT);
-          ";
-                    cartId = await connection.QuerySingleAsync<int>(insertCartQuery, new { cart.UserId });
+                    var createCartParams = new DynamicParameters();
+                    createCartParams.Add("@UserId", cart.UserId);
+                    cartId = await connection.ExecuteScalarAsync<int>("proc_CreateCart", createCartParams, commandType: CommandType.StoredProcedure);
                }
 
                // Upsert cart items
-               var upsertItemsQuery = @"
-     MERGE INTO [dbo].[CartItems] AS Target
-     USING (VALUES (@CartId, @ProductId, @Quantity)) 
-           AS Source ([CartId], [ProductId], [Quantity])
-     ON Target.[CartId] = Source.[CartId] AND Target.[ProductId] = Source.[ProductId]
-     WHEN MATCHED THEN 
-         UPDATE SET [Quantity] = Source.[Quantity]
-     WHEN NOT MATCHED THEN
-         INSERT ([CartId], [ProductId], [Quantity])
-         VALUES (Source.[CartId], Source.[ProductId], Source.[Quantity]);
-     ";
-
                foreach (var item in cart.Items)
                {
-                    await connection.ExecuteAsync(upsertItemsQuery, new
-                    {
-                         CartId = cartId,
-                         ProductId = item.ProductId,
-                         Quantity = item.Quantity
-                    });
+                    var upsertParams = new DynamicParameters();
+                    upsertParams.Add("@CartId", cart.CartId);
+                    upsertParams.Add("@ProductId", item.ProductId);
+                    upsertParams.Add("@Quantity", item.Quantity);
+
+                    await connection.ExecuteAsync("proc_UpsertCartItem", upsertParams, commandType: CommandType.StoredProcedure);
                }
-
-               // Remove items no longer in the cart
-               var itemIds = cart.Items.Select(i => i.ProductId).ToList();
-               var deleteMissingItemsQuery = @"
-     DELETE FROM [dbo].[CartItems]
-     WHERE [CartId] = @CartId AND [ProductId] NOT IN @ProductIds;
-     ";
-
-               await connection.ExecuteAsync(deleteMissingItemsQuery, new { CartId = cartId, ProductIds = itemIds });
           }
 
           public async Task<List<Cart>> GetAllCarts()
           {
                using var connection = _dbConnectionFactory.CreateECommerceDbConnection();
-               var query = @"
-                SELECT * FROM [dbo].[Carts];
-                SELECT * FROM [dbo].[CartItems];
-            ";
+               var query = "proc_GetAllCartsWithItems";
 
-               using var multi = await connection.QueryMultipleAsync(query);
-               var carts = (await multi.ReadAsync<Cart>()).ToList();
-               var cartItems = (await multi.ReadAsync<CartItem>()).ToList();
+               var carts = new List<Cart>();
+               var cartItems = new List<CartItem>();
+
+               var multiParams = new DynamicParameters();
+
+               using (var multi = await connection.QueryMultipleAsync(query, multiParams, commandType: CommandType.StoredProcedure))
+               {
+                    carts = (await multi.ReadAsync<Cart>()).ToList();
+                    cartItems = (await multi.ReadAsync<CartItem>()).ToList();
+               }
 
                // Assign items to the corresponding carts
                foreach (var cart in carts)
@@ -137,31 +122,28 @@ WHERE ci.CartId = (SELECT TOP 1 [CartId] FROM [dbo].[Carts] WHERE [UserId] = @Us
           {
                using var connection = _dbConnectionFactory.CreateECommerceDbConnection();
 
+               var parameters = new DynamicParameters();
+               parameters.Add("@UserId", cart.UserId);
+
                // Ensure the cart exists, if not, create a new cart
-               var cartId = cart.CartId;
+               var cartId = await connection.ExecuteScalarAsync<int>("proc_CheckIfCartExist", parameters, commandType: CommandType.StoredProcedure);
+
                if (cartId == 0)
                {
-                    var insertCartQuery = @"
-                    INSERT INTO [dbo].[Carts] ([UserId]) VALUES (@UserId);
-                    SELECT CAST(SCOPE_IDENTITY() AS INT);
-                ";
-                    cartId = await connection.QuerySingleAsync<int>(insertCartQuery, new { cart.UserId });
+                    var createCartParams = new DynamicParameters();
+                    createCartParams.Add("@UserId", cart.UserId);
+                    cartId = await connection.ExecuteScalarAsync<int>("proc_CreateCart", createCartParams, commandType: CommandType.StoredProcedure);
                }
 
                // Add items to the cart
-               var insertItemQuery = @"
-                INSERT INTO [dbo].[CartItems] ([CartId], [ProductId], [Quantity]) 
-                VALUES (@CartId, @ProductId, @Quantity);
-            ";
-
                foreach (var item in cart.Items)
                {
-                    await connection.ExecuteAsync(insertItemQuery, new
-                    {
-                         CartId = cartId,
-                         ProductId = item.ProductId,
-                         Quantity = item.Quantity
-                    });
+                    var insertItemParams = new DynamicParameters();
+                    insertItemParams.Add("@CartId", cartId);
+                    insertItemParams.Add("@ProductId", item.ProductId);
+                    insertItemParams.Add("@Quantity", item.Quantity);
+
+                    await connection.ExecuteAsync("proc_AddItemToCart", insertItemParams, commandType: CommandType.StoredProcedure);
                }
           }
 
@@ -169,18 +151,12 @@ WHERE ci.CartId = (SELECT TOP 1 [CartId] FROM [dbo].[Carts] WHERE [UserId] = @Us
           {
                using var connection = _dbConnectionFactory.CreateECommerceDbConnection();
 
-               // Get the CartId for the user
-               var cartQuery = "SELECT [Id] FROM [dbo].[Carts] WHERE [UserId] = @UserId";
-               var cartId = await connection.QuerySingleOrDefaultAsync<int>(cartQuery, new { UserId = userId });
-
-               if (cartId == 0)
-               {
-                    throw new ArgumentException($"No cart found for user with ID: {userId}");
-               }
+               var parameters = new DynamicParameters();
+               parameters.Add("@UserId", userId);
+               parameters.Add("@ProductId", productId);
 
                // Remove the item from the CartItems table
-               var removeItemQuery = "DELETE FROM [dbo].[CartItems] WHERE [CartId] = @CartId AND [ProductId] = @ProductId";
-               await connection.ExecuteAsync(removeItemQuery, new { CartId = cartId, ProductId = productId });
+               await connection.ExecuteAsync("proc_RemoveItemFromCart", parameters, commandType: CommandType.StoredProcedure);
           }
      }
 }

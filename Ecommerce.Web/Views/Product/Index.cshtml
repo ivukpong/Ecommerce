@@ -5,10 +5,10 @@
 <table class="table table-striped">
     <thead class="thead-light">
         <tr>
+            <th>Image</th>
             <th>Name</th>
             <th>Description</th>
             <th>Price</th>
-            <th>Image</th>
             <th>Actions</th>
         </tr>
     </thead>
@@ -31,19 +31,26 @@
                 <td>@item.Price.ToString("C2")</td>
                 <td>
                     <a href="@Url.Action("Details", "Product", new { id = item.ProductId })" class="btn btn-info btn-sm mb-1">View</a>
+
                     @if (User.Identity.IsAuthenticated)
                     {
-                        <a href="@Url.Action("Edit", "Product", new { id = item.ProductId })" class="btn btn-warning btn-sm mb-1">Edit</a>
-                        <a href="@Url.Action("Delete", "Product", new { id = item.ProductId })" class="btn btn-danger btn-sm mb-1">Delete</a>
+                        @if (User.IsInRole("Admin"))
+                        {
+                            <a href="@Url.Action("Edit", "Product", new { id = item.ProductId })" class="btn btn-warning btn-sm mb-1">Edit</a>
+                            <a href="@Url.Action("Delete", "Product", new { id = item.ProductId })" class="btn btn-danger btn-sm mb-1">Delete</a>
+                        }
+
                         <form asp-controller="Cart" asp-action="AddToCart" asp-route-productId="@item.ProductId" method="post" style="display:inline;">
                             <button type="submit" class="btn btn-success btn-sm">Add to Cart</button>
                         </form>
                     }
                 </td>
             </tr>
-
         }
     </tbody>
 </table>
 
-<a href="@Url.Action("Create", "Product")" class="btn btn-primary">Create New Product</a>
+@if (User.Identity.IsAuthenticated && User.IsInRole("Admin"))
+{
+    <a href="@Url.Action("Create", "Product")" class="btn btn-primary">Create New Product</a>
+}

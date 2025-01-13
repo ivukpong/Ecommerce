@@ -24,7 +24,7 @@ public class OrderController : Controller
                return RedirectToAction("Login", "Account");
           }
 
-          var orders = await _orderService.GetAllOrders(); // Fetch all orders for the user
+          var orders = await _orderService.GetAllOrders(userEmail); // Fetch all orders for the user
           return View(orders);
      }
 

@@ -65,9 +65,10 @@ public class OrderService : IOrderService
      }
 
      // Get all orders
-     public async Task<List<Order>> GetAllOrders()
+     public async Task<List<Order>> GetAllOrders(string email)
      {
-          return await _ordersRepository.GetAllOrders();
+
+          return await _ordersRepository.GetAllOrders(email);
      }
 
      // Get an order by ID and UserId
@@ -99,14 +100,14 @@ public class OrderService : IOrderService
      }
 
      // Delete an order by ID
-     public async Task<Order> DeleteOrder(int id)
+     public async Task DeleteOrder(int id)
      {
           var order = await _ordersRepository.GetOrder(id, string.Empty);
           if (order == null)
           {
                throw new KeyNotFoundException($"Order with ID {id} not found.");
           }
-
-          return await _ordersRepository.DeleteOrder(id);
+          
+         await _ordersRepository.DeleteOrder(id);
      }
 }

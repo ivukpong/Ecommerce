@@ -4,11 +4,11 @@ namespace Ecommerce.Core.Interfaces.IServices
 {
      public interface IOrderService
      {
-          Task<List<Order>> GetAllOrders();
+          Task<List<Order>> GetAllOrders(string email);
           Task<Order> GetOrder(int id, string userId);
           Task<Order> CreateOrder(string email, Order order);
           Task UpdateOrder(Order order);
-          Task<Order> DeleteOrder(int id);
+          Task DeleteOrder(int id);
      }
 
 }

@@ -1,9 +1,8 @@
-﻿
-namespace Ecommerce.Core.Models
+﻿namespace Ecommerce.Core.Models
 {
      public class User
      {
-          public Guid Id { get; set; } // Unique identifier for the user, can be used if necessary
+          public Guid Id { get; set; } // Unique identifier for the user
 
           public string Username { get; set; } = null!; // Non-nullable, required field
 
@@ -14,5 +13,7 @@ namespace Ecommerce.Core.Models
           public string Salt { get; set; } = null!; // Salt for password hashing
 
           public DateTime CreatedAt { get; set; } = DateTime.UtcNow; // Default to current time
+
+          public string Role { get; set; } = "User"; // Default role is User
      }
 }

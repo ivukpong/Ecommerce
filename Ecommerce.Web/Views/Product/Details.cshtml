@@ -15,7 +15,7 @@
     </form>
 }
 <a href="@Url.Action("Index", "Product")" class="btn btn-primary">Back to Product List</a>
-@if (User.Identity.IsAuthenticated)
+@if (User.IsInRole("Admin"))
 {
      <a href="@Url.Action("Edit", "Product", new { id = Model.ProductId })" class="btn btn-secondary">Edit</a>
      <a href="@Url.Action("Delete", "Product", new { id = Model.ProductId })" class="btn btn-danger">Delete</a>

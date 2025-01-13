@@ -2,6 +2,7 @@
 using Ecommerce.Core.Interfaces.IFactories;
 using Ecommerce.Core.Interfaces.IRepository;
 using Ecommerce.Core.Models;
+using Microsoft.Data.SqlClient;
 using System.Data;
 
 public class OrdersRepository : IOrdersRepository
@@ -19,114 +20,106 @@ public class OrdersRepository : IOrdersRepository
           using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
           {
                // Insert the order and retrieve the generated ID
-               var orderQuery = @"
-                INSERT INTO [dbo].[Orders] 
-                ([UserId], [OrderDate], [Street], [City], [PostalCode], [Country]) 
-                VALUES 
-                (@UserId, @OrderDate, @Street, @City, @PostalCode, @Country);
-                SELECT CAST(SCOPE_IDENTITY() AS INT);";
+               DynamicParameters orderParameters = new();
+               orderParameters.Add("UserId", order.UserId);
+               orderParameters.Add("OrderDate", order.OrderDate);
+               orderParameters.Add("Street", order.Street);
+               orderParameters.Add("City", order.City);
+               orderParameters.Add("PostalCode", order.PostalCode);
+               orderParameters.Add("Country", order.Country);
 
-               var orderParameters = new
-               {
-                    order.UserId,
-                    order.OrderDate,
-                    order.Street,
-                    order.City,
-                    order.PostalCode,
-                    order.Country
-               };
+               orderParameters.Add("OrderId", dbType: DbType.Int32, direction: ParameterDirection.Output);
 
-               order.OrderId = await connection.ExecuteScalarAsync<int>(orderQuery, orderParameters);
+               await connection.ExecuteAsync("proc_CreateOrder", orderParameters, commandType: CommandType.StoredProcedure);
+
+               order.OrderId = orderParameters.Get<int>("@OrderId");
 
                if (order.Items.Any())
                {
                     // Insert order items
-                    var orderItemQuery = @"
-                    INSERT INTO [dbo].[OrderItems] 
-                    ([OrderId], [ProductId], [Quantity], [Price]) 
-                    VALUES 
-                    (@OrderId, @ProductId, @Quantity, @Price);";
-
                     foreach (var item in order.Items)
                     {
-                         var itemParameters = new
-                         {
-                              OrderId = order.OrderId,
-                              item.ProductId,
-                              item.Quantity,
-                              item.Price
-                         };
+                         DynamicParameters orderItemParameters = new();
+                         orderItemParameters.Add("OrderId", order.OrderId);
+                         orderItemParameters.Add("ProductId", item.ProductId);
+                         orderItemParameters.Add("Quantity", item.Quantity);
+                         orderItemParameters.Add("Price", item.Price);
+                        
 
-                         await connection.ExecuteAsync(orderItemQuery, itemParameters);
+                         await connection.ExecuteAsync("proc_CreateOrderItem", orderItemParameters, commandType: CommandType.StoredProcedure);
                     }
                }
           }
      }
 
      // Delete an order and its items
-     public async Task<Order> DeleteOrder(int id)
+     public async Task DeleteOrder(int id)
      {
           using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
           {
                // Retrieve the order to confirm its existence
-               var orderQuery = "SELECT * FROM [dbo].[Orders] WHERE [OrderId] = @OrderId;";
-               var orderParameters = new { OrderId = id };
+               DynamicParameters orderParameters = new();
+               orderParameters.Add("OrderId", id);
 
-               var order = await connection.QuerySingleOrDefaultAsync<Order>(orderQuery, orderParameters);
+               var order = await connection.QuerySingleOrDefaultAsync<Order>("proc_GetOrderById", orderParameters, commandType:CommandType.StoredProcedure);
 
                if (order != null)
                {
                     // Delete associated order items
-                    var deleteItemsQuery = "DELETE FROM [dbo].[OrderItems] WHERE [OrderId] = @OrderId;";
-                    await connection.ExecuteAsync(deleteItemsQuery, orderParameters);
+                    await connection.ExecuteAsync("proc_DeleteOrderItem", orderParameters, commandType: CommandType.StoredProcedure);
 
                     // Delete the order itself
-                    var deleteOrderQuery = "DELETE FROM [dbo].[Orders] WHERE [OrderId] = @OrderId;";
-                    await connection.ExecuteAsync(deleteOrderQuery, orderParameters);
+                    await connection.ExecuteAsync("proc_DeleteOrder", orderParameters, commandType: CommandType.StoredProcedure);
                }
-
-               return order;
           }
      }
 
      // Get all orders with their items
-     public async Task<List<Order>> GetAllOrders()
+     public async Task<List<Order>> GetAllOrders(string email)
      {
           using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
           {
-               var query = @"
-                SELECT * FROM [dbo].[Orders];
-                SELECT * FROM [dbo].[OrderItems];";
 
-               using (var multi = await connection.QueryMultipleAsync(query))
+               DynamicParameters orderItemParameters = new();
+               orderItemParameters.Add("UserId", email);
+
+
+               // Execute the stored procedure
+               using (var multi = await connection.QueryMultipleAsync(
+                   "proc_GetOrdersByUserId",
+                   orderItemParameters,
+                   commandType: CommandType.StoredProcedure))
                {
+                    // Read the orders
                     var orders = (await multi.ReadAsync<Order>()).ToList();
-                    var orderItems = await multi.ReadAsync<OrderItem>();
 
+                    // Read the order items
+                    var orderItems = (await multi.ReadAsync<OrderItem>()).ToList();
+
+                    // Map order items to their respective orders
                     foreach (var order in orders)
                     {
-                         order.Items = orderItems
-                             .Where(item => item.OrderId == order.OrderId)
-                             .ToList();
+                         order.Items = orderItems.Where(item => item.OrderId == order.OrderId).ToList();
                     }
 
                     return orders;
+
                }
-          }
+          } 
      }
 
      // Get an order by ID and UserId
-     public async Task<Order> GetOrder(int id, string userId)
+     public async Task<Order> GetOrder(int id, string email)
      {
           using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
           {
-               var query = @"
-                SELECT * FROM [dbo].[Orders] WHERE [OrderId] = @OrderId AND [UserId] = @UserId;
-                SELECT * FROM [dbo].[OrderItems] WHERE [OrderId] = @OrderId;";
 
-               var parameters = new { OrderId = id, UserId = userId };
 
-               using (var multi = await connection.QueryMultipleAsync(query, parameters))
+               DynamicParameters orderItemParameters = new();
+               orderItemParameters.Add("UserId", email);
+               orderItemParameters.Add("orderId", id);
+
+               using (var multi = await connection.QueryMultipleAsync("proc_GetOrderByUserId", orderItemParameters))
                {
                     var order = await multi.ReadSingleOrDefaultAsync<Order>();
 
@@ -148,50 +141,46 @@ public class OrdersRepository : IOrdersRepository
      {
           using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
           {
-               // Update the order details
-               var updateOrderQuery = @"
-                UPDATE [dbo].[Orders]
-                SET [Street] = @Street,
-                    [City] = @City,
-                    [PostalCode] = @PostalCode,
-                    [Country] = @Country
-                WHERE [OrderId] = @OrderId;";
+               // Update the order details using a stored procedure
+               var updateOrderParameters = new DynamicParameters();
+               updateOrderParameters.Add("OrderId", order.OrderId);
+               updateOrderParameters.Add("Street", order.Street);
+               updateOrderParameters.Add("City", order.City);
+               updateOrderParameters.Add("PostalCode", order.PostalCode);
+               updateOrderParameters.Add("Country", order.Country);
 
-               var updateOrderParameters = new
-               {
-                    order.OrderId,
-                    order.Street,
-                    order.City,
-                    order.PostalCode,
-                    order.Country
-               };
+               await connection.ExecuteAsync(
+                   "proc_UpdateOrder", // Replace with your actual procedure name
+                   updateOrderParameters,
+                   commandType: CommandType.StoredProcedure
+               );
 
-               await connection.ExecuteAsync(updateOrderQuery, updateOrderParameters);
+               // Delete existing order items using a stored procedure
+               var deleteItemsParameters = new DynamicParameters();
+               deleteItemsParameters.Add("OrderId", order.OrderId);
 
-               // Delete existing order items
-               var deleteItemsQuery = "DELETE FROM [dbo].[OrderItems] WHERE [OrderId] = @OrderId;";
-               await connection.ExecuteAsync(deleteItemsQuery, new { OrderId = order.OrderId });
+               await connection.ExecuteAsync(
+                   "proc_DeleteOrderItems", // Replace with your actual procedure name
+                   deleteItemsParameters,
+                   commandType: CommandType.StoredProcedure
+               );
 
-               // Insert updated order items
+               // Insert updated order items using a stored procedure
                if (order.Items.Any())
                {
-                    var insertItemsQuery = @"
-                    INSERT INTO [dbo].[OrderItems] 
-                    ([OrderId], [ProductId], [Quantity], [Price]) 
-                    VALUES 
-                    (@OrderId, @ProductId, @Quantity, @Price);";
-
                     foreach (var item in order.Items)
                     {
-                         var itemParameters = new
-                         {
-                              OrderId = order.OrderId,
-                              item.ProductId,
-                              item.Quantity,
-                              item.Price
-                         };
+                         var insertItemParameters = new DynamicParameters();
+                         insertItemParameters.Add("OrderId", order.OrderId);
+                         insertItemParameters.Add("ProductId", item.ProductId);
+                         insertItemParameters.Add("Quantity", item.Quantity);
+                         insertItemParameters.Add("Price", item.Price);
 
-                         await connection.ExecuteAsync(insertItemsQuery, itemParameters);
+                         await connection.ExecuteAsync(
+                             "proc_InsertOrderItem", // Replace with your actual procedure name
+                             insertItemParameters,
+                             commandType: CommandType.StoredProcedure
+                         );
                     }
                }
           }

@@ -2,6 +2,7 @@
 using Ecommerce.Core.Interfaces.IRepository;
 using Ecommerce.Core.Models;
 using Dapper;
+using System.Data;
 
 namespace Ecommerce.Infrastructure.Repositories
 {
@@ -18,22 +19,18 @@ namespace Ecommerce.Infrastructure.Repositories
           {
                using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
                {
-                    var query = @"
-                    INSERT INTO [dbo].[Users] 
-                        ([Username], [Email], [PasswordHash], [Salt], [CreatedAt]) 
-                    VALUES 
-                        (@UserName, @Email, @PasswordHash, @Salt, @CreatedAt)";
+                    var parameters = new DynamicParameters();
+                    parameters.Add("UserName", user.Username);
+                    parameters.Add("Email", user.Email);
+                    parameters.Add("PasswordHash", user.PasswordHash);
+                    parameters.Add("Salt", user.Salt);
+                    parameters.Add("CreatedAt", user.CreatedAt);
 
-                    var parameters = new
-                    {
-                         user.Username,
-                         user.Email,
-                         user.PasswordHash,
-                         user.Salt,
-                         user.CreatedAt
-                    };
-
-                    await connection.ExecuteAsync(query, parameters);
+                    await connection.ExecuteAsync(
+                        "proc_AddNewUser", // Replace with the actual procedure name
+                        parameters,
+                        commandType: CommandType.StoredProcedure
+                    );
                }
           }
 
@@ -41,14 +38,14 @@ namespace Ecommerce.Infrastructure.Repositories
           {
                using (var connection = _dbConnectionFactory.CreateECommerceDbConnection())
                {
-                    var query = @"
-                  SELECT [Email], [Username], [PasswordHash], [Salt]
-                  FROM [dbo].[Users] 
-                  WHERE [Email] = @Email";
+                    var parameters = new DynamicParameters();
+                    parameters.Add("Email", email);
 
-                    var parameters = new { Email = email };
-
-                    User? user = await connection.QuerySingleOrDefaultAsync<User>(query, parameters);
+                    var user = await connection.QuerySingleOrDefaultAsync<User>(
+                        "proc_GetUserCredentials", // Replace with the actual procedure name
+                        parameters,
+                        commandType: CommandType.StoredProcedure
+                    );
 
                     return user;
                }
