@@ -31,15 +31,26 @@ namespace Ecommerce.Web.Controllers
           {
                if (ModelState.IsValid)
                {
-                    // Register user
-                    await _userService.Register(model);
+                    try
+                    {
+                         // Register user
+                         await _userService.Register(model);
 
-                    // Redirect to login page after registration
-                    return RedirectToAction("Login");
+                         // Redirect to login page after registration
+                         return RedirectToAction("Login");
+                    }
+                    catch (Exception ex)
+                    {
+                         // Capture the error and add it to the ModelState
+                         ModelState.AddModelError(string.Empty, ex.Message);
+                    }
+               }
+               else
+               {
+                    ModelState.AddModelError(string.Empty, "Please correct the errors and try again.");
                }
 
                // If the model state is invalid, return the same view with validation errors
-               ViewBag.RegisterError = "Please correct the errors and try again.";
                return View(model);
           }
 
@@ -76,14 +87,16 @@ namespace Ecommerce.Web.Controllers
                     }
                     catch (Exception ex)
                     {
-                         ViewBag.LoginError = ex.Message;
+                         // Capture the error and add it to the ModelState
+                         ModelState.AddModelError(string.Empty, ex.Message);
                     }
                }
                else
                {
-                    ViewBag.LoginError = "Please correct the errors and try again.";
+                    ModelState.AddModelError(string.Empty, "Please correct the errors and try again.");
                }
 
+               // If the model state is invalid, return the same view with validation errors
                return View(model);
           }
 
