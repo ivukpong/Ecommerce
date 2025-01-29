@@ -7,13 +7,30 @@ using Ecommerce.Infrastructure;
 using Ecommerce.Infrastructure.Repositories;
 using FluentValidation;
 using Microsoft.OpenApi.Models;
+using Serilog;
+using Ecommerce.API.Middlewares;
+using Microsoft.Extensions.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure Serilog
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .WriteTo.File("logs/app-.log", rollingInterval: RollingInterval.Day)
+    .CreateLogger();
+
+// Register Serilog as a singleton
+builder.Host.UseSerilog();
+
+// Register the logger explicitly for DI
+builder.Services.AddSingleton<Serilog.ILogger>(Log.Logger);
 
 // Add services to the container.
 builder.Services.AddControllers();
 
-// Add Swagger services
+// Add Swagger services with JWT security definition
 builder.Services.AddSwaggerGen(c =>
 {
      c.SwaggerDoc("v1", new OpenApiInfo
@@ -28,9 +45,34 @@ builder.Services.AddSwaggerGen(c =>
                Url = new Uri("https://iniobongukpong.com"),
           },
      });
+
+     // Add JWT Authentication to Swagger
+     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+     {
+          In = ParameterLocation.Header,
+          Description = "Enter 'Bearer {your JWT token}'",
+          Name = "Authorization",
+          Type = SecuritySchemeType.Http,
+          Scheme = "bearer"
+     });
+
+     c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] {}
+        }
+    });
 });
 
-// Register other necessary services
+// Register services
 builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
 builder.Services.AddScoped<IUsersRepository, UserRepository>();
 builder.Services.AddScoped<IProductsRepository, ProductsRepository>();
@@ -45,29 +87,31 @@ builder.Services.AddValidatorsFromAssemblyContaining<UserValidator>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Enable Serilog request logging
+app.UseSerilogRequestLogging();
+
+// Global Exception Handling Middleware
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+// Security settings
 if (!app.Environment.IsDevelopment())
 {
-     app.UseExceptionHandler("/Home/Error");
      app.UseHsts();
 }
 
+// Middleware pipeline
 app.UseHttpsRedirection();
-
 app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Enable middleware to serve generated Swagger as a JSON endpoint
+// Enable Swagger
 app.UseSwagger();
-
-// Enable middleware to serve Swagger UI (HTML, JS, CSS, etc.),
-// specifying the Swagger JSON endpoint.
 app.UseSwaggerUI(c =>
 {
      c.SwaggerEndpoint("/swagger/v1/swagger.json", "Ecommerce API V1");
-     c.RoutePrefix = "swagger";
+     c.RoutePrefix = "swagger"; // Swagger UI at /swagger
 });
 
 app.UseEndpoints(endpoints =>
