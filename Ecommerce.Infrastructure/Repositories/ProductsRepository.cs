@@ -62,13 +62,18 @@ namespace Ecommerce.Infrastructure.Repositories
                try
                {
                     using var connection = _dbConnectionFactory.CreateECommerceDbConnection();
-                    var parameters = new DynamicParameters(product);
+                    var parameters = new DynamicParameters();
+                    parameters.Add("Name", product.Name);
+                    parameters.Add("Price", product.Price);
+                    parameters.Add("Description", product.Description);
+                    parameters.Add("ImageUrl", product.ImageUrl);
+                    parameters.Add("IsFeatured", product.IsFeatured);
                     parameters.Add("ProductId", dbType: DbType.Int32, direction: ParameterDirection.Output);
 
                     await connection.ExecuteAsync("proc_CreateProduct", parameters, commandType: CommandType.StoredProcedure);
-                    int productId = parameters.Get<int>("ProductId");
+                    product.ProductId = parameters.Get<int>("ProductId");
 
-                    _logger.Information("Product created successfully with ID {ProductId}.", productId);
+                    _logger.Information("Product created successfully with ID {ProductId}.", product.ProductId);
                }
                catch (Exception ex)
                {

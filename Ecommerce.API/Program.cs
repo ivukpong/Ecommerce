@@ -106,6 +106,17 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Redirect root URL ("/") to Swagger UI
+app.Use(async (context, next) =>
+{
+     if (context.Request.Path == "/")
+     {
+          context.Response.Redirect("/swagger");
+          return;
+     }
+     await next();
+});
+
 // Enable Swagger
 app.UseSwagger();
 app.UseSwaggerUI(c =>
