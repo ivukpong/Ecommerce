@@ -75,6 +75,7 @@ namespace Ecommerce.Core.Services
                if (cart == null)
                {
                     _logger.Warning("Cart not found for user {UserId}.", userId);
+                    throw new KeyNotFoundException("Cart not found.");
                }
                return cart;
           }

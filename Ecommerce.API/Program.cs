@@ -8,8 +8,8 @@ using Ecommerce.Infrastructure.Repositories;
 using FluentValidation;
 using Microsoft.OpenApi.Models;
 using Serilog;
-using Ecommerce.API.Middlewares;
 using Microsoft.Extensions.DependencyInjection;
+using Ecommerce.API.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 

@@ -20,30 +20,34 @@ public class JwtAuthenticationMiddleware
           if (!string.IsNullOrEmpty(token))
           {
                var tokenHandler = new JwtSecurityTokenHandler();
-               var key = Encoding.UTF8.GetBytes(_configuration["JwtSecretKey"]);
-
-               try
+               var secretKey = _configuration["JwtSecretKey"];
+               if (secretKey != null)
                {
-                    var claimsPrincipal = tokenHandler.ValidateToken(token, new TokenValidationParameters
-                    {
-                         ValidateIssuerSigningKey = true,
-                         IssuerSigningKey = new SymmetricSecurityKey(key),
-                         ValidateIssuer = false,
-                         ValidateAudience = false,
-                         ClockSkew = TimeSpan.Zero
-                    }, out _);
+                    var key = Encoding.UTF8.GetBytes(secretKey);
 
-                    var userEmail = claimsPrincipal?.FindFirst(ClaimTypes.Email)?.Value;
-
-                    if (!string.IsNullOrEmpty(userEmail))
+                    try
                     {
-                         context.Items["UserEmail"] = userEmail;
-                         context.User = claimsPrincipal; // Set the user identity
+                         var claimsPrincipal = tokenHandler.ValidateToken(token, new TokenValidationParameters
+                         {
+                              ValidateIssuerSigningKey = true,
+                              IssuerSigningKey = new SymmetricSecurityKey(key),
+                              ValidateIssuer = false,
+                              ValidateAudience = false,
+                              ClockSkew = TimeSpan.Zero
+                         }, out _);
+
+                         var userEmail = claimsPrincipal?.FindFirst(ClaimTypes.Email)?.Value;
+
+                         if (!string.IsNullOrEmpty(userEmail) && claimsPrincipal != null)
+                         {
+                              context.Items["UserEmail"] = userEmail;
+                              context.User = claimsPrincipal; // Set the user identity
+                         }
                     }
-               }
-               catch
-               {
-                    // Handle invalid token (log, clear cookies, etc.)
+                    catch
+                    {
+                         // Handle invalid token (log, clear cookies, etc.)
+                    }
                }
           }
 

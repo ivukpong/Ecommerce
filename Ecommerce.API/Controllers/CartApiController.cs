@@ -21,6 +21,10 @@ namespace Ecommerce.Api.Controllers
           public async Task<IActionResult> GetCart()
           {
                var userEmail = User.FindFirstValue(ClaimTypes.Email);
+               if (userEmail == null)
+               {
+                    return Unauthorized();
+               }
                var cart = await _cartService.GetCart(userEmail);
                return Ok(cart);
           }
@@ -29,6 +33,10 @@ namespace Ecommerce.Api.Controllers
           public async Task<IActionResult> AddToCart(int productId)
           {
                var userEmail = User.FindFirstValue(ClaimTypes.Email);
+               if (userEmail == null)
+               {
+                    return Unauthorized();
+               }
                await _cartService.AddItemToCart(userEmail, productId);
                return Ok();
           }
@@ -37,6 +45,10 @@ namespace Ecommerce.Api.Controllers
           public async Task<IActionResult> RemoveFromCart(int productId)
           {
                var userEmail = User.FindFirstValue(ClaimTypes.Email);
+               if (userEmail == null)
+               {
+                    return Unauthorized();
+               }
                await _cartService.RemoveItemFromCart(userEmail, productId);
                return Ok();
           }
@@ -45,6 +57,10 @@ namespace Ecommerce.Api.Controllers
           public async Task<IActionResult> ClearCart()
           {
                var userEmail = User.FindFirstValue(ClaimTypes.Email);
+               if (userEmail == null)
+               {
+                    return Unauthorized();
+               }
                await _cartService.ClearCart(userEmail);
                return Ok();
           }

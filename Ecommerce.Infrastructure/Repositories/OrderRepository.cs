@@ -148,7 +148,7 @@ public class OrdersRepository : IOrdersRepository
      }
 
      // Get an order by ID and UserId
-     public async Task<Order> GetOrder(int id, string email)
+     public async Task<Order?> GetOrder(int id, string email)
      {
           try
           {
