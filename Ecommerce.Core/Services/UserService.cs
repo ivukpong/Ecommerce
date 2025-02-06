@@ -1,6 +1,7 @@
 ﻿using Ecommerce.Core.Interfaces.IRepository;
 using Ecommerce.Core.Interfaces.IServices;
 using Ecommerce.Core.Models;
+using Ecommerce.Core.DTOs;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Org.BouncyCastle.Security;
@@ -9,7 +10,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
-using Ecommerce.Core.DTOs;
 using Serilog;
 
 namespace Ecommerce.Core.Services
@@ -39,37 +39,24 @@ namespace Ecommerce.Core.Services
           {
                _logger.Information("Login attempt for email: {Email}", model.Email);
 
-               var loginValidationResult = await _loginValidator.ValidateAsync(model);
-               if (!loginValidationResult.IsValid)
+               var validationResult = await _loginValidator.ValidateAsync(model);
+               if (!validationResult.IsValid)
                {
-                    _logger.Warning("Login validation failed for email: {Email}. Errors: {Errors}",
-                        model.Email, string.Join(", ", loginValidationResult.Errors.Select(e => e.ErrorMessage)));
-                    throw new ArgumentException(string.Join(", ", loginValidationResult.Errors.Select(e => e.ErrorMessage)));
-               }
-
-               if (string.IsNullOrEmpty(model.Email) || string.IsNullOrEmpty(model.Password))
-               {
-                    _logger.Warning("Login failed: Email or Password is null for email: {Email}", model.Email);
-                    throw new ArgumentNullException("Email and Password cannot be null");
+                    _logger.Warning("Login validation failed: {Errors}", string.Join(", ", validationResult.Errors.Select(e => e.ErrorMessage)));
+                    throw new ValidationException(validationResult.Errors);
                }
 
                var existingUser = await _usersRepository.GetUserCredentials(model.Email);
                if (existingUser == null)
                {
-                    _logger.Warning("Invalid login attempt for email: {Email}", model.Email);
-                    throw new Exception("Invalid login credentials");
+                    _logger.Warning("Login failed: User not found for email: {Email}", model.Email);
+                    throw new UnauthorizedAccessException("Invalid login credentials.");
                }
 
-               // Verify password
-               byte[] salt = Convert.FromBase64String(existingUser.Salt);
-               byte[] passwordBytes = Encoding.UTF8.GetBytes(model.Password);
-               byte[] saltedPassword = salt.Concat(passwordBytes).ToArray();
-               byte[] enteredHash = HashPassword(saltedPassword);
-
-               if (!enteredHash.SequenceEqual(existingUser.PasswordHash))
+               if (!VerifyPassword(model.Password, existingUser.Salt, existingUser.PasswordHash))
                {
-                    _logger.Warning("Invalid password attempt for email: {Email}", model.Email);
-                    throw new Exception("Invalid login credentials");
+                    _logger.Warning("Login failed: Incorrect password for email: {Email}", model.Email);
+                    throw new UnauthorizedAccessException("Invalid login credentials.");
                }
 
                var token = await GenerateJwtToken(existingUser);
@@ -86,35 +73,26 @@ namespace Ecommerce.Core.Services
           {
                _logger.Information("Registration attempt for email: {Email}", model.Email);
 
-               var registerValidationResult = await _registerValidator.ValidateAsync(model);
-               if (!registerValidationResult.IsValid)
+               var validationResult = await _registerValidator.ValidateAsync(model);
+               if (!validationResult.IsValid)
                {
-                    _logger.Warning("Registration validation failed for email: {Email}. Errors: {Errors}",
-                        model.Email, string.Join(", ", registerValidationResult.Errors.Select(e => e.ErrorMessage)));
-                    throw new ArgumentException(string.Join(", ", registerValidationResult.Errors.Select(e => e.ErrorMessage)));
-               }
-
-               if (model.Email == null || model.Password == null || model.Username == null)
-               {
-                    _logger.Warning("Registration failed: Missing required fields for email: {Email}", model.Email);
-                    throw new ArgumentNullException("Email, Password, and Username cannot be null");
+                    _logger.Warning("Registration validation failed: {Errors}", string.Join(", ", validationResult.Errors.Select(e => e.ErrorMessage)));
+                    throw new ValidationException(validationResult.Errors);
                }
 
                var existingUser = await _usersRepository.GetUserCredentials(model.Email);
                if (existingUser != null)
                {
                     _logger.Warning("Registration failed: User already exists with email: {Email}", model.Email);
-                    throw new Exception("User already exists");
+                    throw new InvalidOperationException("User with this email already exists.");
                }
 
                byte[] salt = GenerateSalt(16);
-               byte[] passwordBytes = Encoding.UTF8.GetBytes(model.Password);
-               byte[] saltedPassword = salt.Concat(passwordBytes).ToArray();
-               byte[] hashedPassword = HashPassword(saltedPassword);
+               byte[] hashedPassword = HashPassword(salt, model.Password);
 
                User user = new User
                {
-                    CreatedAt = DateTime.Now,
+                    CreatedAt = DateTime.UtcNow,
                     Email = model.Email,
                     PasswordHash = hashedPassword,
                     Salt = Convert.ToBase64String(salt),
@@ -150,7 +128,7 @@ namespace Ecommerce.Core.Services
                    issuer: "EcommerceApp",
                    audience: "EcommerceAppUser",
                    claims: claims,
-                   expires: DateTime.Now.AddHours(1),
+                   expires: DateTime.UtcNow.AddHours(1),
                    signingCredentials: creds
                );
 
@@ -158,20 +136,23 @@ namespace Ecommerce.Core.Services
                return await Task.FromResult(new JwtSecurityTokenHandler().WriteToken(token));
           }
 
+          private bool VerifyPassword(string password, string saltBase64, byte[] storedHash)
+          {
+               byte[] salt = Convert.FromBase64String(saltBase64);
+               byte[] passwordBytes = Encoding.UTF8.GetBytes(password);
+               byte[] saltedPassword = salt.Concat(passwordBytes).ToArray();
+               byte[] enteredHash = HashPassword(saltedPassword);
+
+               return enteredHash.SequenceEqual(storedHash);
+          }
+
           private byte[] GenerateSalt(int length)
           {
-               var jwtSecretKey = _configuration["JwtSecretKey"];
-               if (string.IsNullOrEmpty(jwtSecretKey))
+               var salt = new byte[length];
+               using (var rng = RandomNumberGenerator.Create())
                {
-                    _logger.Error("JWT Secret Key is not configured.");
-                    throw new Exception("JWT Secret Key is not configured.");
+                    rng.GetBytes(salt);
                }
-
-               var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey));
-               SecureRandom random = new SecureRandom();
-               byte[] salt = new byte[length];
-               random.NextBytes(salt);
-
                _logger.Information("Generated salt for password hashing.");
                return salt;
           }
@@ -180,10 +161,15 @@ namespace Ecommerce.Core.Services
           {
                using (SHA256 sha256 = SHA256.Create())
                {
-                    var hashedPassword = sha256.ComputeHash(saltedPassword);
-                    _logger.Information("Password hashed successfully.");
-                    return hashedPassword;
+                    return sha256.ComputeHash(saltedPassword);
                }
+          }
+
+          private byte[] HashPassword(byte[] salt, string password)
+          {
+               byte[] passwordBytes = Encoding.UTF8.GetBytes(password);
+               byte[] saltedPassword = salt.Concat(passwordBytes).ToArray();
+               return HashPassword(saltedPassword);
           }
      }
 }

@@ -7,7 +7,7 @@
         <tr>
             <th>Image</th>
             <th>Name</th>
-            <th>Description</th>
+            @* <th>Description</th> *@
             <th>Price</th>
             <th>Actions</th>
         </tr>
@@ -27,7 +27,7 @@
                     }
                 </td>
                 <td>@Html.DisplayFor(modelItem => item.Name)</td>
-                <td>@Html.DisplayFor(modelItem => item.Description)</td>
+                @* <td>@Html.DisplayFor(modelItem => item.Description)</td> *@
                 <td>@item.Price.ToString("C2")</td>
                 <td>
                     <a href="@Url.Action("Details", "Product", new { id = item.ProductId })" class="btn btn-info btn-sm mb-1">View</a>
@@ -41,7 +41,7 @@
                         }
 
                         <form asp-controller="Cart" asp-action="AddToCart" asp-route-productId="@item.ProductId" method="post" style="display:inline;">
-                            <button type="submit" class="btn btn-success btn-sm">Add to Cart</button>
+                            <button type="submit" class="btn btn-success btn-sm mb-1">Add to Cart</button>
                         </form>
                     }
                 </td>

@@ -13,7 +13,6 @@ else
             <tr>
                 <th>Image</th>
                 <th>Product</th>
-                <th>Description</th>
                 <th>Price</th>
                 <th>Quantity</th>
                 <th>Total</th>
@@ -35,7 +34,6 @@ else
                         }
                     </td>
                     <td>@item?.Product?.Name</td>
-                    <td>@item?.Product?.Description</td>
                     <td>@item?.Product?.Price.ToString("C2")</td>
                     <td>@item.Quantity</td>
                     <td>@((item.Product.Price * item.Quantity).ToString("C2"))</td>

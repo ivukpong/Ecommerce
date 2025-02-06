@@ -4,6 +4,7 @@ using Ecommerce.Core.Models;
 using Serilog;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace Ecommerce.Core.Services
 {
@@ -22,29 +23,18 @@ namespace Ecommerce.Core.Services
 
           public async Task AddItemToCart(string userId, int productId)
           {
-               _logger.Information("Attempting to add product {ProductId} to cart for user {UserId}.", productId, userId);
+               _logger.Information("Adding product {ProductId} to cart for user {UserId}.", productId, userId);
 
-               // Check if the user already has a cart
-               var cart = await _cartsRepository.GetCart(userId);
-
-               // If no cart exists, create a new one
-               if (cart == null)
-               {
-                    cart = new Cart { UserId = userId, Items = new List<CartItem>() };
-                    await _cartsRepository.AddItemToCart(cart);  // Assuming CreateCart handles the insert
-                    _logger.Information("Created a new cart for user {UserId}.", userId);
-               }
+               var cart = await GetOrCreateCart(userId);
 
                var product = await _productsRepository.GetProductById(productId);
                if (product == null)
                {
-                    _logger.Error("Product {ProductId} not found when adding to cart for user {UserId}.", productId, userId);
-                    throw new KeyNotFoundException("Product not found.");
+                    _logger.Error("Product {ProductId} not found for user {UserId}.", productId, userId);
+                    throw new KeyNotFoundException($"Product with ID {productId} not found.");
                }
 
-               // Check if the product is already in the cart
                var cartItem = cart.Items.FirstOrDefault(i => i.ProductId == productId);
-
                if (cartItem == null)
                {
                     cart.Items.Add(new CartItem { ProductId = productId, Quantity = 1 });
@@ -56,16 +46,8 @@ namespace Ecommerce.Core.Services
                     _logger.Information("Incremented quantity of product {ProductId} in cart for user {UserId}.", productId, userId);
                }
 
-               // Update the cart with the new item or updated quantity
                await _cartsRepository.UpdateCart(cart);
-               _logger.Information("Updated cart for user {UserId} after adding product {ProductId}.", userId, productId);
-          }
-
-          public async Task ClearCart(string userId)
-          {
-               _logger.Information("Clearing cart for user {UserId}.", userId);
-               await _cartsRepository.ClearCart(userId);
-               _logger.Information("Cart cleared for user {UserId}.", userId);
+               _logger.Information("Cart updated for user {UserId} after adding product {ProductId}.", userId, productId);
           }
 
           public async Task<Cart> GetCart(string userId)
@@ -74,21 +56,20 @@ namespace Ecommerce.Core.Services
                var cart = await _cartsRepository.GetCart(userId);
                if (cart == null)
                {
-                    _logger.Warning("Cart not found for user {UserId}.", userId);
-                    throw new KeyNotFoundException("Cart not found.");
+                    _logger.Warning("No cart found for user {UserId}.", userId);
+                    return new Cart { UserId = userId, Items = new List<CartItem>() };
                }
                return cart;
           }
 
           public async Task RemoveItemFromCart(string userId, int productId)
           {
-               _logger.Information("Attempting to remove product {ProductId} from cart for user {UserId}.", productId, userId);
+               _logger.Information("Removing product {ProductId} from cart for user {UserId}.", productId, userId);
 
                var cart = await _cartsRepository.GetCart(userId);
-
                if (cart == null)
                {
-                    _logger.Error("Cart not found for user {UserId}.", userId);
+                    _logger.Error("No cart found for user {UserId}.", userId);
                     throw new KeyNotFoundException("Cart not found.");
                }
 
@@ -97,12 +78,32 @@ namespace Ecommerce.Core.Services
                {
                     cart.Items.Remove(cartItem);
                     await _cartsRepository.UpdateCart(cart);
-                    _logger.Information("Removed product {ProductId} from cart for user {UserId}.", productId, userId);
+                    _logger.Information("Product {ProductId} removed from cart for user {UserId}.", productId, userId);
                }
                else
                {
                     _logger.Warning("Product {ProductId} not found in cart for user {UserId}.", productId, userId);
                }
+          }
+
+          public async Task ClearCart(string userId)
+          {
+               _logger.Information("Clearing cart for user {UserId}.", userId);
+
+               await _cartsRepository.ClearCart(userId);
+               _logger.Information("Cart cleared for user {UserId}.", userId);
+          }
+
+          private async Task<Cart> GetOrCreateCart(string userId)
+          {
+               var cart = await _cartsRepository.GetCart(userId);
+               if (cart == null)
+               {
+                    cart = new Cart { UserId = userId, Items = new List<CartItem>() };
+                    await _cartsRepository.AddItemToCart(cart);
+                    _logger.Information("Created a new cart for user {UserId}.", userId);
+               }
+               return cart;
           }
      }
 }

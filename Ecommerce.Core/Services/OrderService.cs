@@ -3,6 +3,7 @@ using Ecommerce.Core.Interfaces.IServices;
 using Ecommerce.Core.Models;
 using Serilog;
 using System.Linq;
+using System.Threading.Tasks;
 
 public class OrderService : IOrderService
 {
@@ -24,6 +25,12 @@ public class OrderService : IOrderService
      public async Task<Order> CreateOrder(string userEmail, Order model)
      {
           Log.Information("Creating order for user {UserEmail}.", userEmail);
+
+          if (model == null)
+          {
+               Log.Error("Order creation failed because the provided order model is null.");
+               throw new ArgumentNullException(nameof(model), "Order model cannot be null.");
+          }
 
           var cart = await _cartService.GetCart(userEmail);
           if (cart == null || !cart.Items.Any())
@@ -48,7 +55,6 @@ public class OrderService : IOrderService
                }).ToList()
           };
 
-          // Validate each product in the order
           foreach (var item in order.Items)
           {
                var product = await _productsService.GetProductById(item.ProductId);
@@ -57,16 +63,23 @@ public class OrderService : IOrderService
                     Log.Error("Product with ID {ProductId} not found for order creation.", item.ProductId);
                     throw new ArgumentException($"Product with ID {item.ProductId} not found.");
                }
+
                item.Product = product;
           }
 
-          // Create the order
-          await _ordersRepository.CreateOrder(order);
-          Log.Information("Order created successfully for user {UserEmail} with {ItemCount} items.", userEmail, order.Items.Count);
+          try
+          {
+               await _ordersRepository.CreateOrder(order);
+               Log.Information("Order created successfully for user {UserEmail} with {ItemCount} items.", userEmail, order.Items.Count);
 
-          // Clear the cart after the order is created
-          await _cartService.ClearCart(userEmail);
-          Log.Information("Cart cleared for user {UserEmail} after order creation.", userEmail);
+               await _cartService.ClearCart(userEmail);
+               Log.Information("Cart cleared for user {UserEmail} after order creation.", userEmail);
+          }
+          catch (Exception ex)
+          {
+               Log.Error(ex, "Error occurred while creating order for user {UserEmail}.", userEmail);
+               throw;
+          }
 
           return order;
      }
@@ -75,8 +88,10 @@ public class OrderService : IOrderService
      public async Task<List<Order>> GetAllOrders(string email)
      {
           Log.Information("Fetching all orders for user {UserEmail}.", email);
+
           var orders = await _ordersRepository.GetAllOrders(email);
           Log.Information("Fetched {OrderCount} orders for user {UserEmail}.", orders.Count, email);
+
           return orders;
      }
 
@@ -92,8 +107,7 @@ public class OrderService : IOrderService
                throw new KeyNotFoundException($"Order with ID {id} not found for user {userId}.");
           }
 
-          // Fetch product details for each order item
-          foreach (var item in order.Items.ToList())
+          foreach (var item in order.Items)
           {
                var product = await _productsService.GetProductById(item.ProductId);
                if (product != null)
@@ -112,6 +126,12 @@ public class OrderService : IOrderService
      {
           Log.Information("Updating order with ID {OrderId} for user {UserId}.", order.OrderId, order.UserId);
 
+          if (order == null)
+          {
+               Log.Error("Order update failed because the provided order is null.");
+               throw new ArgumentNullException(nameof(order), "Order cannot be null.");
+          }
+
           var existingOrder = await _ordersRepository.GetOrder(order.OrderId, order.UserId);
           if (existingOrder == null)
           {
@@ -119,8 +139,16 @@ public class OrderService : IOrderService
                throw new KeyNotFoundException($"Order with ID {order.OrderId} not found.");
           }
 
-          await _ordersRepository.UpdateOrder(order);
-          Log.Information("Order with ID {OrderId} updated successfully for user {UserId}.", order.OrderId, order.UserId);
+          try
+          {
+               await _ordersRepository.UpdateOrder(order);
+               Log.Information("Order with ID {OrderId} updated successfully for user {UserId}.", order.OrderId, order.UserId);
+          }
+          catch (Exception ex)
+          {
+               Log.Error(ex, "Error occurred while updating order with ID {OrderId} for user {UserId}.", order.OrderId, order.UserId);
+               throw;
+          }
      }
 
      // Delete an order by ID
@@ -135,7 +163,15 @@ public class OrderService : IOrderService
                throw new KeyNotFoundException($"Order with ID {id} not found.");
           }
 
-          await _ordersRepository.DeleteOrder(id);
-          Log.Information("Order with ID {OrderId} deleted successfully.", id);
+          try
+          {
+               await _ordersRepository.DeleteOrder(id);
+               Log.Information("Order with ID {OrderId} deleted successfully.", id);
+          }
+          catch (Exception ex)
+          {
+               Log.Error(ex, "Error occurred while deleting order with ID {OrderId}.", id);
+               throw;
+          }
      }
 }

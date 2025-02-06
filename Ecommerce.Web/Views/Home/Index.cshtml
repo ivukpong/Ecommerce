@@ -41,7 +41,7 @@
                             <img src="@product.ImageUrl" class="card-img-top" alt="@product.Name" style="height: 300px; object-fit: contain;">
                             <div class="card-body">
                                 <h5 class="card-title">@product.Name</h5>
-                                <p class="card-text">@product.Description</p>
+                                @* <p class="card-text">@product.Description</p> *@
                                 <p class="card-text text-muted">@product.Price.ToString("C2")</p>
                                 <a href="@Url.Action("Details", "Product", new { id = product.ProductId })" class="btn btn-outline-primary">View Details</a>
                             </div>

@@ -1,22 +1,44 @@
 ﻿@model Ecommerce.Core.Models.Product
 
-<h1>@Model.Name</h1>
+<div class="container my-5">
+    <div class="row g-4">
+        <!-- Product Image -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm">
+                <img src="@Model.ImageUrl" alt="@Model.Name" class="card-img-top rounded" />
+            </div>
+        </div>
 
-<div>
-    <p><strong>Description:</strong> @Model.Description</p>
-    <p><strong>Price:</strong> @Model.Price.ToString("C")</p>
-    <img src="@Model.ImageUrl" alt="@Model.Name" class="img-fluid" />
+        <!-- Product Details -->
+        <div class="col-lg-6">
+            <h1 class="display-5 fw-bold mb-3">@Model.Name</h1>
+            <p class="fs-5"><strong>Description:</strong> @Model.Description</p>
+            <p class="h4 text-success mb-4"><strong>Price:</strong> @Model.Price.ToString("C")</p>
+
+            @if (User.Identity.IsAuthenticated)
+            {
+                <form asp-controller="Cart" asp-action="AddToCart" asp-route-id="@Model.ProductId" method="post">
+                    <button type="submit" class="btn btn-success btn-lg w-100 mb-3">
+                        <i class="bi bi-cart-plus me-2"></i> Add to Cart
+                    </button>
+                </form>
+            }
+
+            <a href="@Url.Action("Index", "Product")" class="btn btn-outline-primary btn-lg w-100">
+                <i class="bi bi-arrow-left me-2"></i> Go to Product List
+            </a>
+
+            @if (User.IsInRole("Admin"))
+            {
+                <div class="mt-4 d-flex justify-content-between">
+                    <a href="@Url.Action("Edit", "Product", new { id = Model.ProductId })" class="btn btn-secondary">
+                        <i class="bi bi-pencil-square me-2"></i> Edit
+                    </a>
+                    <a href="@Url.Action("Delete", "Product", new { id = Model.ProductId })" class="btn btn-danger">
+                        <i class="bi bi-trash me-2"></i> Delete
+                    </a>
+                </div>
+            }
+        </div>
+    </div>
 </div>
-
-@if (User.Identity.IsAuthenticated)
-{
-    <form asp-controller="Cart" asp-action="AddToCart" asp-route-id="@Model.ProductId" method="post">
-        <button type="submit" class="btn btn-success my-3">Add to Cart</button>
-    </form>
-}
-<a href="@Url.Action("Index", "Product")" class="btn btn-primary">Back to Product List</a>
-@if (User.IsInRole("Admin"))
-{
-     <a href="@Url.Action("Edit", "Product", new { id = Model.ProductId })" class="btn btn-secondary">Edit</a>
-     <a href="@Url.Action("Delete", "Product", new { id = Model.ProductId })" class="btn btn-danger">Delete</a>
-}
